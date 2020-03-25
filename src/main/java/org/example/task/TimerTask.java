@@ -1,6 +1,6 @@
-package org.example;
+package org.example.task;
 
-import org.example.util.Task;
+import org.example.task.Task;
 
 import java.util.concurrent.TimeUnit;
 

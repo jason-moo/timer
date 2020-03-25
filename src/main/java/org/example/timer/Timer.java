@@ -1,7 +1,7 @@
 package org.example.timer;
 
 
-import org.example.TimerTask;
+import org.example.task.TimerTask;
 
 public interface Timer {
 
