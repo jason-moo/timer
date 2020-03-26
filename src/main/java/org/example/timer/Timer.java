@@ -1,7 +1,9 @@
 package org.example.timer;
 
 
-import org.example.task.TimerTask;
+import org.example.task.Task;
+
+import java.util.List;
 
 public interface Timer {
 
@@ -14,7 +16,7 @@ public interface Timer {
      * @throws IllegalStateException       if this timer has been {@linkplain #stop() stopped} already
      *
      */
-    String newTimeout(TimerTask task);
+    String newTimeout(Task task);
 
     /**
      * Releases all resources acquired by this {@link io.netty.util.Timer} and cancels all
@@ -24,4 +26,11 @@ public interface Timer {
      *         this method
      */
     void stop();
+
+    abstract String addTask(Task task);
+
+    abstract List<Task> queryTimerTask(int index, long deadline);
+
+    abstract void handle(List<Task> tasks);
+
 }

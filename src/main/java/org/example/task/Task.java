@@ -1,24 +1,18 @@
 package org.example.task;
 
+import lombok.Data;
+
+import java.util.concurrent.TimeUnit;
+
+@Data
 public class Task {
 
-    private String taskId;
+    private String id;
 
     private String customData;
 
-    public String getTaskId() {
-        return taskId;
-    }
+    private long delay;
 
-    public void setTaskId(String taskId) {
-        this.taskId = taskId;
-    }
+    private TimeUnit unit;
 
-    public String getCustomData() {
-        return customData;
-    }
-
-    public void setCustomData(String customData) {
-        this.customData = customData;
-    }
 }

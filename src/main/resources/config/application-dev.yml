@@ -1,0 +1,18 @@
+server:
+  port: 8888
+spring:
+  datasource:
+    #druid相关配置
+    druid:
+      #基本属性
+      url: jdbc:mysql://18667030551.wicp.vip:21883/test?useSSL=false&useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true&serverTimezone=Asia/Shanghai
+      username: root
+      password: zjjh2019@)!&
+  redis:
+    # Redis数据库索引（默认为0）
+    database: 1
+    host: 18667030551.wicp.vip
+    port: 24166
+    password: yybconby
+    # 连接超时时间（毫秒）
+    timeout: 5s

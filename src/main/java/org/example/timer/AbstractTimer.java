@@ -2,7 +2,6 @@ package org.example.timer;
 
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.internal.PlatformDependent;
-import org.example.task.TimerTask;
 import org.example.util.ListUtils;
 import org.example.util.ObjectUtil;
 import org.example.task.Task;
@@ -11,12 +10,12 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-public abstract class AbstractTimer implements Timer {
+public class AbstractTimer implements Timer {
 
     private static final AtomicIntegerFieldUpdater<AbstractTimer> WORKER_STATE_UPDATER =
             AtomicIntegerFieldUpdater.newUpdater(AbstractTimer.class, "workerState");
 
-    private static volatile Integer workerState;
+    volatile int workerState;
 
     public static final int WORKER_STATE_INIT = 0;
 
@@ -41,6 +40,14 @@ public abstract class AbstractTimer implements Timer {
     private final AbstractTimer.Worker worker = new AbstractTimer.Worker();
 
     private ThreadPoolExecutor threadPoolExecutor;
+
+    public int getWorkerState() {
+        return workerState;
+    }
+
+    public void setWorkerState(int workerState) {
+        this.workerState = workerState;
+    }
 
     public AbstractTimer(long tickDuration, TimeUnit unit, int ticksPerWheel) {
         this(Executors.defaultThreadFactory(), tickDuration, unit, ticksPerWheel, (ThreadPoolExecutor) Executors.newCachedThreadPool());
@@ -111,27 +118,22 @@ public abstract class AbstractTimer implements Timer {
     }
 
     @Override
-    public String newTimeout(TimerTask task) {
+    public String newTimeout(Task task) {
         ObjectUtil.checkNotNull(task, "task");
         start();
         String taskId = addTask(task);
         return taskId;
     }
 
-    abstract String addTask(TimerTask task);
 
-    abstract List<Task> queryTimerTask(int index,long deadline);
-
-    abstract void handle(List<Task> tasks);
-
-    protected void process(int index,long deadline){
-        List<Task> tasks = queryTimerTask(index,deadline);
-        List<List<Task>> divisionTask = ListUtils.division(tasks,50);
-        if (divisionTask != null){
+    protected void process(int index, long deadline) {
+        List<Task> tasks = queryTimerTask(index, deadline);
+        List<List<Task>> divisionTask = ListUtils.division(tasks, 50);
+        if (divisionTask != null) {
             int size = divisionTask.size();
             for (int i = 0; i < size; i++) {
                 List<Task> taskList = divisionTask.get(i);
-                threadPoolExecutor.execute(() ->{
+                threadPoolExecutor.execute(() -> {
                     handle(taskList);
                 });
             }
@@ -172,6 +174,21 @@ public abstract class AbstractTimer implements Timer {
         }
     }
 
+    @Override
+    public String addTask(Task task) {
+        return null;
+    }
+
+    @Override
+    public List<Task> queryTimerTask(int index, long deadline) {
+        return null;
+    }
+
+    @Override
+    public void handle(List<Task> tasks) {
+
+    }
+
     private class Worker implements Runnable {
 
         @Override
@@ -190,7 +207,7 @@ public abstract class AbstractTimer implements Timer {
                 if (deadline > 0) {
                     int idx = (int) (tick & mask);
                     // todo 获取过期的任务然后处理
-                    process(idx,deadline);
+                    process(idx, deadline);
                     tick++;
                 }
             } while (WORKER_STATE_UPDATER.get(AbstractTimer.this) == WORKER_STATE_STARTED);
