@@ -5,7 +5,9 @@ import io.netty.util.internal.PlatformDependent;
 import org.example.util.ListUtils;
 import org.example.util.ObjectUtil;
 import org.example.task.Task;
+import org.springframework.util.CollectionUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -23,17 +25,15 @@ public class AbstractTimer implements Timer {
 
     public static final int WORKER_STATE_SHUTDOWN = 2;
 
-    private long tick;
+    protected volatile long startTime;
 
-    private long startTime;
-
-    private int mask;
+    protected int mask;
 
     private final Thread workerThread;
 
     private static final long MILLISECOND_NANOS = TimeUnit.MILLISECONDS.toNanos(1);
 
-    private final long tickDuration;
+    protected final long tickDuration;
 
     private final CountDownLatch startTimeInitialized = new CountDownLatch(1);
 
@@ -73,14 +73,12 @@ public class AbstractTimer implements Timer {
                     "tickDuration: %d (expected: 0 < tickDuration in nanos < %d",
                     tickDuration, Long.MAX_VALUE / length));
         }
-        Executors.newCachedThreadPool();
 
         if (duration < MILLISECOND_NANOS) {
             this.tickDuration = MILLISECOND_NANOS;
         } else {
             this.tickDuration = duration;
         }
-
         workerThread = threadFactory.newThread(worker);
 
     }
@@ -90,7 +88,7 @@ public class AbstractTimer implements Timer {
         switch (WORKER_STATE_UPDATER.get(this)) {
             case WORKER_STATE_INIT:
                 if (WORKER_STATE_UPDATER.compareAndSet(this, WORKER_STATE_INIT, WORKER_STATE_STARTED)) {
-                    workerThread.start();
+                    workerThread.run();
                 }
                 break;
             case WORKER_STATE_STARTED:
@@ -117,25 +115,18 @@ public class AbstractTimer implements Timer {
         return normalizedTicksPerWheel;
     }
 
-    @Override
-    public String newTimeout(Task task) {
-        ObjectUtil.checkNotNull(task, "task");
-        start();
-        String taskId = addTask(task);
-        return taskId;
-    }
-
-
     protected void process(int index, long deadline) {
         List<Task> tasks = queryTimerTask(index, deadline);
-        List<List<Task>> divisionTask = ListUtils.division(tasks, 50);
-        if (divisionTask != null) {
-            int size = divisionTask.size();
-            for (int i = 0; i < size; i++) {
-                List<Task> taskList = divisionTask.get(i);
-                threadPoolExecutor.execute(() -> {
-                    handle(taskList);
-                });
+        if (!CollectionUtils.isEmpty(tasks)) {
+            List<List<Task>> divisionTask = ListUtils.division(tasks, 50);
+            if (divisionTask != null) {
+                int size = divisionTask.size();
+                for (int i = 0; i < size; i++) {
+                    List<Task> taskList = divisionTask.get(i);
+                    threadPoolExecutor.execute(() -> {
+                        handle(taskList);
+                    });
+                }
             }
         }
     }
@@ -175,12 +166,20 @@ public class AbstractTimer implements Timer {
     }
 
     @Override
-    public String addTask(Task task) {
-        return null;
+    public String newTimeout(Task task, long delay, TimeUnit unit) {
+        ObjectUtil.checkNotNull(task, "task");
+        start();
+        String taskId = addTask(task, delay, unit);
+        return taskId;
     }
 
     @Override
     public List<Task> queryTimerTask(int index, long deadline) {
+        return null;
+    }
+
+    @Override
+    public String addTask(Task task, long delay, TimeUnit unit) {
         return null;
     }
 
@@ -190,6 +189,8 @@ public class AbstractTimer implements Timer {
     }
 
     private class Worker implements Runnable {
+
+        private long tick;
 
         @Override
         public void run() {
@@ -206,7 +207,6 @@ public class AbstractTimer implements Timer {
                 final long deadline = waitForNextTick();
                 if (deadline > 0) {
                     int idx = (int) (tick & mask);
-                    // todo 获取过期的任务然后处理
                     process(idx, deadline);
                     tick++;
                 }
@@ -215,39 +215,42 @@ public class AbstractTimer implements Timer {
             // todo stop后的数据处理
 
         }
-    }
 
-    private long waitForNextTick() {
-        long deadline = TimeUnit.MILLISECONDS.toNanos(1) * (tick + 1);
+        private long waitForNextTick() {
+            long deadline = tickDuration * (tick + 1);
 
-        for (; ; ) {
-            final long currentTime = System.nanoTime() - startTime;
-            long sleepTimeMs = (deadline - currentTime + 999999) / 1000000;
+            for (; ; ) {
+                final long currentTime = System.nanoTime();
+                long sleepTimeMs = (deadline - currentTime + startTime + 999999) / 10000;
 
-            if (sleepTimeMs <= 0) {
-                if (currentTime == Long.MIN_VALUE) {
-                    return -Long.MAX_VALUE;
-                } else {
-                    return currentTime;
+                if (sleepTimeMs <= 0) {
+                    if (currentTime == Long.MIN_VALUE) {
+                        return -Long.MAX_VALUE;
+                    } else {
+                        return currentTime;
+                    }
                 }
-            }
-            // Check if we run on windows, as if thats the case we will need
-            // to round the sleepTime as workaround for a bug that only affect
-            // the JVM if it runs on windows.
-            //
-            // See https://github.com/netty/netty/issues/356
-            if (PlatformDependent.isWindows()) {
-                sleepTimeMs = sleepTimeMs / 10 * 10;
-                if (sleepTimeMs == 0) {
-                    sleepTimeMs = 1;
+                // Check if we run on windows, as if thats the case we will need
+                // to round the sleepTime as workaround for a bug that only affect
+                // the JVM if it runs on windows.
+                //
+                // See https://github.com/netty/netty/issues/356
+                if (PlatformDependent.isWindows()) {
+                    sleepTimeMs = sleepTimeMs / 10 * 10;
+                    if (sleepTimeMs == 0) {
+                        sleepTimeMs = 1;
+                    }
                 }
-            }
 
-            try {
-                Thread.sleep(sleepTimeMs);
-            } catch (InterruptedException ignored) {
-                //  todo
+                try {
+                    Thread.sleep(sleepTimeMs);
+                    System.out.println(LocalDateTime.now());
+                } catch (InterruptedException ignored) {
+                    //  todo
+                }
             }
         }
     }
+
+
 }

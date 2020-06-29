@@ -15,4 +15,13 @@ public class Task {
 
     private TimeUnit unit;
 
+    public Task(String customData, long delay, TimeUnit unit) {
+        this.customData = customData;
+        this.delay = delay;
+        this.unit = unit;
+    }
+
+    public Task(String customData) {
+        this.customData = customData;
+    }
 }
